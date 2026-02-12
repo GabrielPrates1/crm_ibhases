@@ -1,0 +1,40 @@
+
+> crm-ibhasses@0.1.0 build
+> react-scripts build
+
+Creating an optimized production build...
+Compiled with warnings.
+
+[eslint] 
+src\context\ModalCalendar.tsx
+  Line 6:10:  'sucess' is defined but never used  @typescript-eslint/no-unused-vars
+  Line 6:18:  'error' is defined but never used   @typescript-eslint/no-unused-vars
+
+src\hooks\auth\index.tsx
+  Line 7:10:  'sucess' is defined but never used  @typescript-eslint/no-unused-vars
+
+src\pages\private\patientRelatory\index.tsx
+  Line 2:17:   'useContext' is defined but never used  @typescript-eslint/no-unused-vars
+  Line 10:34:  'info' is defined but never used        @typescript-eslint/no-unused-vars
+
+Search for the keywords to learn more about each warning.
+To ignore, add // eslint-disable-next-line to the line before.
+
+File sizes after gzip:
+
+  370.78 kB  build\static\js\main.c0014cc9.js
+  2.81 kB    build\static\css\main.ba608cbe.css
+
+The project was built assuming it is hosted at /.
+You can control this with the homepage field in your package.json.
+
+The build folder is ready to be deployed.
+You may serve it with a static server:
+
+  yarn global add serve
+  serve -s build
+
+Find out more about deployment here:
+
+  https://cra.link/deployment
+

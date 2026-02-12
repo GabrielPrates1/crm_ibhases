@@ -7,7 +7,6 @@ import { useModalCalendarContext } from "../../context/ModalCalendar";
 import { ReactComponent as Close } from "../../assets/icons/close.svg";
 import { Button } from "../../styles/utils/button";
 import ISearch from "../../interfaces/ISearch";
-import { sucess, error, warning, info } from "../alert";
 
 function ModalCalendar(): JSX.Element {
   const { state, updateStateFalse, callAPI } = useModalCalendarContext();
