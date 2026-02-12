@@ -4,7 +4,7 @@ import React from "react";
 import { useState, useContext, createContext } from "react";
 import API from "../../services/api";
 
-import { sucess, error, warning, info } from "../../components/alert";
+import { error, warning, info } from "../../components/alert";
 
 interface ISignIn {
       email?: string;

@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import React, { useContext, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import * as S from "./styles";
 import { useModalCalendarContext } from "../../../context/ModalCalendar";
 import API from "../../../services/api";
@@ -7,7 +7,7 @@ import useAuth from "../../../hooks/auth";
 import { useHistory } from "react-router-dom";
 import IPatient from "../../../interfaces/IPatient";
 import moment from "moment";
-import { sucess, error, warning, info } from "../../../components/alert";
+import { sucess, error, warning } from "../../../components/alert";
 
 interface IPersons {
   id: string;

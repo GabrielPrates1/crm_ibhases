@@ -3,7 +3,7 @@ import React from "react";
 import useAuth from "../hooks/auth";
 import IModalCalendar from "../interfaces/IModalCalendar";
 import IPatient from "../interfaces/IPatient";
-import { sucess, error, warning, info } from "../components/alert";
+import { warning, info } from "../components/alert";
 
 import API from "../services/api";
 
