@@ -259,9 +259,8 @@ const Dashboard: React.FC = () => {
                                           </S.PanelTitle>
                                           <S.ChartTabs>
                                                 <S.ChartTab active>
-                                                      Mensal
+                                                      Anual
                                                 </S.ChartTab>
-                                                <S.ChartTab>Anual</S.ChartTab>
                                           </S.ChartTabs>
                                     </S.PanelHeader>
                                     <Chart />
@@ -307,7 +306,7 @@ const Dashboard: React.FC = () => {
                                           <S.ActionButton
                                                 onClick={() =>
                                                       history.push(
-                                                            "/evolution/relatory",
+                                                            "/patient/evolution/create",
                                                       )
                                                 }
                                           >

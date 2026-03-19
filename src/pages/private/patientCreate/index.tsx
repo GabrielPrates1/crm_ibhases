@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { createRef, useEffect, useState } from "react";
 import axios from "axios";
+import Joi from "joi";
 import API from "../../../services/api";
 import useAuth from "../../../hooks/auth";
 import IPatient from "../../../interfaces/IPatient";
@@ -8,6 +9,24 @@ import { useHistory } from "react-router-dom";
 import NavigationHeader from "../../../components/navigationHeader";
 import { sucess, error, warning, info } from "../../../components/alert";
 import * as S from "../../../styles/formStyles";
+
+const patientSchema = Joi.object({
+      patientPlace: Joi.string().allow(""),
+      name: Joi.string().required(),
+      cpf: Joi.string().allow(""),
+      rg: Joi.string().allow(""),
+      gender: Joi.string().lowercase().valid("male", "female").default("male"),
+      uf: Joi.string().allow(""),
+      cep: Joi.string().allow(""),
+      street: Joi.string().allow(""),
+      city: Joi.string().allow(""),
+      numberHouse: Joi.string().allow(""),
+      birthday: Joi.string().allow(""),
+      joinedAt: Joi.string().allow(""),
+      motherName: Joi.string().allow(""),
+      criminalRecord: Joi.string().allow(""),
+      substances: Joi.string().allow(""),
+});
 
 const PatientCreate: React.FC = () => {
       const { userData } = useAuth();
@@ -96,28 +115,42 @@ const PatientCreate: React.FC = () => {
       };
 
       const registerNewPatient = async () => {
-            if (!patient.name) {
-                  warning("Por favor, preencha o nome do paciente.");
+            // Build camelCase payload (only schema-allowed fields, excluding status)
+            const excluded = ["status"];
+            const payload: Record<string, string> = {};
+
+            Object.entries(patient).forEach(([key, value]) => {
+                  if (!value || excluded.includes(key)) return;
+                  const camelKey = key
+                        .split("_")
+                        .map((word, i) =>
+                              i === 0
+                                    ? word.toLowerCase()
+                                    : word.charAt(0).toUpperCase() +
+                                      word.slice(1),
+                        )
+                        .join("");
+                  payload[camelKey] = value;
+            });
+
+            // Validate with Joi before sending
+            const { error: validationError } = patientSchema.validate(payload, {
+                  abortEarly: false,
+            });
+
+            if (validationError) {
+                  const messages = validationError.details
+                        .map((d) => d.message)
+                        .join("\n");
+                  warning(messages);
                   return;
             }
 
             setIsSubmitting(true);
             const form = new FormData();
-
-            Object.entries(patient).forEach(([key, value]) => {
-                  if (value) {
-                        const formattedKey = key
-                              .split("_")
-                              .map((word, index) =>
-                                    index === 0
-                                          ? word.toLowerCase()
-                                          : word.charAt(0).toUpperCase() +
-                                            word.slice(1),
-                              )
-                              .join("");
-                        form.append(formattedKey, value);
-                  }
-            });
+            Object.entries(payload).forEach(([key, value]) =>
+                  form.append(key, value),
+            );
 
             if (image) {
                   form.append("profilePhoto", image);
@@ -158,7 +191,7 @@ const PatientCreate: React.FC = () => {
                         title="Novo Acolhido"
                         backPath="/patient/relatory"
                         breadcrumbs={[
-                              { label: "Acolhido", path: "/patient/relatory" },
+                              { label: "Paciente", path: "/patient/relatory" },
                               { label: "Cadastrar Novo" },
                         ]}
                   />

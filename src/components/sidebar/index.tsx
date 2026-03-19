@@ -16,109 +16,142 @@ import { TextCard } from "./utils/textCard";
 import useAuth from "../../hooks/auth";
 /*Button interfaces.*/
 interface IButton {
-	Route: string;
-	Title: string;
-	Icon: React.FunctionComponent<
-		React.SVGProps<SVGSVGElement> & {
-			title?: string | undefined;
-		}
-	>;
+      Route: string;
+      Title: string;
+      Icon: React.FunctionComponent<
+            React.SVGProps<SVGSVGElement> & {
+                  title?: string | undefined;
+            }
+      >;
 }
 
 /*Link, name, button icon here.*/
 const buttons: Array<IButton> = [
-	{
-		Route: "/",
-		Title: "Dashboard",
-		Icon: RicChartsIcon,
-	},
-	{
-		Route: "/patient/create",
-		Title: "Novo paciente",
-		Icon: StethoscopeIcon,
-	},
-	{
-		Route: "/patient/evolution/create",
-		Title: "Nova evolução",
-		Icon: ChartIcon,
-	},
-	{
-		Route: "/patient/relatory",
-		Title: "Relátorios",
-		Icon: RelatorioIcon,
-	},
+      {
+            Route: "/",
+            Title: "Dashboard",
+            Icon: RicChartsIcon,
+      },
+      {
+            Route: "/patient/create",
+            Title: "Novo acolhido",
+            Icon: StethoscopeIcon,
+      },
+      {
+            Route: "/patient/evolution/create",
+            Title: "Nova evolução",
+            Icon: ChartIcon,
+      },
+      {
+            Route: "/patient/relatory",
+            Title: "Relátorios",
+            Icon: RelatorioIcon,
+      },
 ];
 
 /*creation of the sidebar component.*/
 const Sidebar = ({ mobile = false }): JSX.Element => {
-	/*estado do click.*/
-	const { logOut, userData } = useAuth();
-	const [active, setActive] = useState<boolean>(false);
-	const [list, setList] = useState<IButton[]>(buttons);
+      /*estado do click.*/
+      const { logOut, userData } = useAuth();
+      const [active, setActive] = useState<boolean>(false);
+      const [list, setList] = useState<IButton[]>(buttons);
 
-	const [click, setClick] = useState<Boolean>(false);
-	let location = useLocation();
+      const [click, setClick] = useState<Boolean>(false);
+      let location = useLocation();
 
-	function handlerClick() {
-		return setClick(!click);
-	}
+      function handlerClick() {
+            return setClick(!click);
+      }
 
-	useEffect(() => {
-		if (userData?.user_rank === "master") {
-			setList((f) => [
-				...f,
-				{
-					Route: "/managers",
-					Title: "Usuarios",
-					Icon: SignIcon,
-				},
-			]);
-		}
-	}, []);
+      useEffect(() => {
+            if (userData?.user_rank === "master") {
+                  setList((f) => [
+                        ...f,
+                        {
+                              Route: "/managers",
+                              Title: "Usuarios",
+                              Icon: SignIcon,
+                        },
+                  ]);
+            }
+      }, []);
 
-	if (mobile) {
-		return (
-			<div>
-				<Hamburger active={active} onClick={() => setActive(!active)}>
-					<span />
-				</Hamburger>
-				<ContainerMobile active={active}>
-					<div>
-						<IbhasesLogo className="ibhasesLogo" />
-						{list.map(({ Route, Title, Icon }, i) => {
-							const DefineSelected = Route === location.pathname ? "#0088B2 " : "#52575C";
+      if (mobile) {
+            return (
+                  <div>
+                        <Hamburger
+                              active={active}
+                              onClick={() => setActive(!active)}
+                        >
+                              <span />
+                        </Hamburger>
+                        <ContainerMobile active={active}>
+                              <div>
+                                    <IbhasesLogo className="ibhasesLogo" />
+                                    {list.map(({ Route, Title, Icon }, i) => {
+                                          const DefineSelected =
+                                                Route === location.pathname
+                                                      ? "#0088B2 "
+                                                      : "#52575C";
 
-							return (
-								<div key={i}>
-									<TextCard link={Route} Icon={Icon} text={Title} color={DefineSelected} key={i} />
-								</div>
-							);
-						})}
-					</div>
-					<TextCard Icon={ExitIcon} text="Sair" color="#52575c" onClick={logOut} />
-				</ContainerMobile>
-			</div>
-		);
-	}
+                                          return (
+                                                <div key={i}>
+                                                      <TextCard
+                                                            link={Route}
+                                                            Icon={Icon}
+                                                            text={Title}
+                                                            color={
+                                                                  DefineSelected
+                                                            }
+                                                            key={i}
+                                                      />
+                                                </div>
+                                          );
+                                    })}
+                              </div>
+                              <TextCard
+                                    Icon={ExitIcon}
+                                    text="Sair"
+                                    color="#52575c"
+                                    onClick={logOut}
+                              />
+                        </ContainerMobile>
+                  </div>
+            );
+      }
 
-	return (
-		<Container onClick={() => handlerClick()}>
-			<div>
-				<IbhasesLogo className="ibhasesLogo" />
-				{list.map(({ Route, Title, Icon }, i) => {
-					const DefineSelected = Route === location.pathname ? "#0088B2 " : "#52575C";
+      return (
+            <Container onClick={() => handlerClick()}>
+                  <div>
+                        <IbhasesLogo className="ibhasesLogo" />
+                        {list.map(({ Route, Title, Icon }, i) => {
+                              const DefineSelected =
+                                    Route === location.pathname
+                                          ? "#0088B2 "
+                                          : "#52575C";
 
-					return (
-						<div key={i}>
-							<TextCard link={Route} Icon={Icon} text={Title} color={DefineSelected} key={i} />
-						</div>
-					);
-				})}
-			</div>
+                              return (
+                                    <div key={i}>
+                                          <TextCard
+                                                link={Route}
+                                                Icon={Icon}
+                                                text={Title}
+                                                color={DefineSelected}
+                                                key={i}
+                                          />
+                                    </div>
+                              );
+                        })}
+                  </div>
 
-			<TextCard Icon={ExitIcon} text="Sair" color="#52575c" onClick={logOut} />
-		</Container>
-	);
+                  <TextCard
+                        Icon={ExitIcon}
+                        text="Sair"
+                        color="#52575c"
+                        onClick={logOut}
+                  />
+            </Container>
+      );
 };
 
 export default Sidebar;

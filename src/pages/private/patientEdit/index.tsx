@@ -781,7 +781,7 @@ const PatientEdit: React.FC = () => {
                                           <S.SecondaryButton
                                                 onClick={() =>
                                                       history.push(
-                                                            `/patient/evolution/${patient.id}`,
+                                                            `/evolution/relatory/${patient.id}`,
                                                       )
                                                 }
                                                 style={{ marginTop: 8 }}
