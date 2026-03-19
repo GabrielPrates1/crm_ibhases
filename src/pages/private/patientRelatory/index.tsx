@@ -1,306 +1,560 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState } from "react";
 import * as S from "./styles";
-import { useModalCalendarContext } from "../../../context/ModalCalendar";
-import API from "../../../services/api";
-import useAuth from "../../../hooks/auth";
+import { usePatientFilter } from "../../../hooks/patientFilter";
 import { useHistory } from "react-router-dom";
-import IPatient from "../../../interfaces/IPatient";
 import moment from "moment";
-import { sucess, error, warning } from "../../../components/alert";
-
-interface IPersons {
-  id: string;
-  managers_id: string;
-  managers_name: string;
-  created_at: string;
-  name: string;
-  status: string;
-  joined_at: string;
-}
 
 const PatientRelatory: React.FC = () => {
-  const { updateStateTrue, responseAPI: FilterByModal } =
-    useModalCalendarContext();
-  const { userData } = useAuth();
-  const history = useHistory();
+      const history = useHistory();
+      const {
+            filters,
+            pagination,
+            isLoading,
+            setFilter,
+            clearFilters,
+            setPage,
+            fetchPatients,
+            removePatient,
+            getCurrentPageItems,
+            getVisiblePages,
+            patients,
+      } = usePatientFilter();
 
-  const [page, setPage] = useState<number>(1);
-  const [limitPage, setLimitPage] = useState<number>(0);
-  const [people, setPeople] = useState<IPatient[] | null>(null);
-  const [peopleFilter, setPeopleFilter] = useState<IPatient[] | null>(null);
+      // Estado local para controle do modal de filtros avançados
+      const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
-  const HowManyDays = (day: string) => {
-    day = day.slice(0, 10);
-    const now = moment(new Date());
-    return Math.floor(moment.duration(now.diff(day)).asDays());
-  };
+      const HowManyDays = (day: string) => {
+            day = day.slice(0, 10);
+            const now = moment(new Date());
+            return Math.floor(moment.duration(now.diff(day)).asDays());
+      };
 
-  const showHowManyDays = (date?: string | null) => {
-    if (!date) {
-      return "Adicione a data em que o pacitente iniciou o tratamento.";
-    }
-
-    const day = HowManyDays(date);
-    return day === 1 ? "1 Dia" : `${day} dias`;
-  };
-
-  const Filter = (find: string) => {
-    if (!people) return null;
-    if (find === "*") {
-      setPeopleFilter(null);
-      return setLimitPage(Math.ceil(people.length / 10));
-    }
-
-    const data = people.filter((f): any => {
-      return f.status!.includes(find);
-    });
-
-    setPeopleFilter(data);
-    return setLimitPage(Math.ceil(data.length / 10));
-  };
-
-  const removePatient = (id: string) => {
-    if (!people) return null;
-
-    API.delete("master/patient/delete", {
-      headers: {
-        Authorization: userData!.token,
-      },
-      data: {
-        id: id,
-      },
-    })
-      .then((e) => {
-        setPeople((F) => {
-          if (F === null || undefined) return null;
-
-          F.filter((patient, k) => {
-            if (patient.id!.includes(id)) {
-              F.splice(k, 1);
+      const showHowManyDays = (date?: string | null) => {
+            if (!date) {
+                  return "Sem data de internação";
             }
+            const days = HowManyDays(date);
+            return days === 1 ? "1 Dia" : `${days} dias`;
+      };
 
-            return patient;
-          });
-          return [...F];
-        });
+      const formatDate = (dateStr?: string | null) => {
+            if (!dateStr) return "-";
+            return dateStr.slice(0, 10).split("-").reverse().join("/");
+      };
 
-        setLimitPage(Math.ceil(people.length / 10));
-        sucess("Paciente Deletado com Sucesso!");
-      })
-      .catch((e) => {
-        if (e.request.status === 401) {
-          return warning("O usuário está sem permissão.");
-        }
-        return error("Não foi possível deletar o paciente, tente novamente.");
-      });
-  };
+      const goToRelatory = (id: string, name: string) => {
+            history.push(`/evolution/relatory/${id}`, {
+                  state: { patient: name },
+            });
+      };
 
-  const NewRequest = async () => {
-    const {
-      data: { patients },
-    }: { data: { patients: IPersons[] } } = await API.get("patient/get/all", {
-      headers: {
-        Authorization: userData!.token,
-      },
-    });
+      const goToEditPatient = (id: string) => {
+            history.push(`/patient/edit/${id}`);
+      };
 
-    setLimitPage(Math.ceil(patients.length / 10));
-    setPeople(patients);
-  };
+      const handleRemovePatient = async (id: string) => {
+            if (window.confirm("Deseja realmente excluir este paciente?")) {
+                  await removePatient(id);
+            }
+      };
 
-  const setCurrent = ({ index }: { index: number }) => {
-    if (index <= 0 || index > limitPage || index === page) return null;
+      // Carrega pacientes ao montar (apenas se não tiver dados)
+      useEffect(() => {
+            if (patients.length === 0) {
+                  fetchPatients();
+            }
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
 
-    return setPage(index);
-  };
+      const currentItems = getCurrentPageItems();
+      const visiblePages = getVisiblePages();
+      const hasActiveFilters =
+            filters.status !== "*" ||
+            filters.name !== "" ||
+            filters.manager !== "" ||
+            filters.dateStart !== "" ||
+            filters.dateEnd !== "";
 
-  const goToRelatory = (id: string, name: string) => {
-    console.log("goToRelatory");
-    if (!people) return null;
+      return (
+            <S.ReportStyles>
+                  {/* Header */}
+                  <S.Header>
+                        <h2>Relatório dos Pacientes</h2>
 
-    return history.push(`/evolution/relatory/${id}`, {
-      state: {
-        patient: name,
-      },
-    });
-  };
+                        <div
+                              style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "16px",
+                              }}
+                        >
+                              {/* Botão limpar filtros */}
+                              {hasActiveFilters && (
+                                    <button
+                                          onClick={clearFilters}
+                                          style={{
+                                                background: "transparent",
+                                                border: "1px solid #ccc",
+                                                borderRadius: "8px",
+                                                padding: "8px 16px",
+                                                cursor: "pointer",
+                                                fontSize: "14px",
+                                          }}
+                                    >
+                                          Limpar Filtros
+                                    </button>
+                              )}
 
-  const goToEditPatient = (id: string) => {
-    if (!people) return null;
-    return history.push(`/patient/edit/${id}`);
-  };
+                              {/* Select de status */}
+                              <S.Select>
+                                    <select
+                                          id="select"
+                                          className="input"
+                                          onChange={({ target }) =>
+                                                setFilter(
+                                                      "status",
+                                                      target.value,
+                                                )
+                                          }
+                                          value={filters.status || "*"}
+                                    >
+                                          <option value="*">Todos</option>
+                                          <option value="ativo">Ativos</option>
+                                          <option value="transferido">
+                                                Transferidos
+                                          </option>
+                                          <option value="finalizado">
+                                                Finalizados
+                                          </option>
+                                    </select>
+                                    <S.Arrow
+                                          direction="down"
+                                          className="seta"
+                                    />
+                              </S.Select>
+                        </div>
+                  </S.Header>
 
-  useEffect(() => {
-    if (FilterByModal) {
-      setPeopleFilter(FilterByModal);
-      return setLimitPage(Math.ceil(FilterByModal.length / 10));
-    }
-  }, [FilterByModal]);
-
-  useEffect(() => {
-    NewRequest();
-  }, []);
-
-  return (
-    <S.ReportStyles>
-      {/* Header */}
-      <S.Header>
-        {/* Title */}
-        <h2>Relatório dos Pacientes</h2>
-
-        {/* Input Select w/Linear*/}
-        <S.Select>
-          <select
-            id="select"
-            className="input"
-            onChange={({ target }) => Filter(target.value)}
-            defaultValue="*"
-          >
-            <option value="*">Todos</option>
-            <option value="ativo">Ativos</option>
-            <option value="transferido">Transferidos</option>
-            <option value="finalizado">Finalizados</option>
-          </select>
-          <S.Arrow direction="down" className="seta" />
-        </S.Select>
-      </S.Header>
-      {/* Table */}
-      <div className="ContainerTable">
-        {people && people.length >= 1 ? (
-          <S.Table>
-            {/* Title Table */}
-            <thead>
-              <th>Criado em</th>
-              <th>Internado à</th>
-              <th>Nome do Interno</th>
-              <th>Usuário Responsável</th>
-              <th>Status</th>
-              <th className="IconTable">
-                <button className="buttonModal" onClick={updateStateTrue}>
-                  <S.CalendarIcon />
-                  <S.TextFilter> Filtrar </S.TextFilter>
-                </button>
-              </th>
-            </thead>
-            {/* Info Table */}
-            <tbody>
-              {people && peopleFilter
-                ? peopleFilter
-                    .slice(
-                      Number.parseInt(page.toString() + "0") - 10,
-                      Number.parseInt(page.toString() + "0")
-                    )
-                    .map((ItemBody, index) => {
-                      return (
-                        <tr key={index}>
-                          <td>
-                            {ItemBody.created_at!.slice(0, 10)
-                              .replaceAll("-", "/")
-                              .split("")}
-                          </td>
-                          <td>{showHowManyDays(ItemBody.joined_at)}</td>
-                          <td>{ItemBody.name}</td>
-                          <td>{ItemBody.managers_name}</td>
-                          <td style={{ textTransform: "capitalize" }}>
-                            {ItemBody.status}
-                          </td>
-                          <td className="IconTable">
-                            <S.EyeIcon
+                  {/* Filtros Avançados */}
+                  <div style={{ marginTop: "16px" }}>
+                        <button
                               onClick={() =>
-                                goToRelatory(ItemBody.id!, ItemBody.name!)
+                                    setShowAdvancedFilters(!showAdvancedFilters)
                               }
-                            />
-                            <S.EditIcon
-                              onClick={() => goToEditPatient(ItemBody.id!)}
-                            />
-                            <S.LixoIcon
-                              onClick={() => removePatient(ItemBody.id!)}
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })
-                : people
-                    .slice(
-                      Number.parseInt(page.toString() + "0") - 10,
-                      Number.parseInt(page.toString() + "0")
-                    )
-                    .map((ItemBody, index) => {
-                      return (
-                        <tr key={index}>
-                          <td>
-                            {ItemBody.created_at!.slice(0, 10)
-                              .replaceAll("-", "/")
-                              .split("")}
-                          </td>
-                          <td>{showHowManyDays(ItemBody.joined_at)}</td>
-                          <td>{ItemBody.name}</td>
-                          <td>{ItemBody.managers_name}</td>
-                          <td style={{ textTransform: "capitalize" }}>
-                            {ItemBody.status}
-                          </td>
-                          <td className="IconTable">
-                            <S.EyeIcon
-                              onClick={() =>
-                                goToRelatory(ItemBody.id!, ItemBody.name!)
-                              }
-                            />
-                            <S.EditIcon
-                              onClick={() => goToEditPatient(ItemBody.id!)}
-                            />
-                            <S.LixoIcon
-                              onClick={() => removePatient(ItemBody.id!)}
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
-            </tbody>
-          </S.Table>
-        ) : (
-          <h1>
-            {people === null
-              ? "Carregando..."
-              : people.length === 0 &&
-                "Não foram localizados os registros"}{" "}
-          </h1>
-        )}
-        {people && (
-          <S.Indexao>
-            {/* Next Page or Back Page */}
-            <S.IndexaoCard
-              backgroundState={"transparent"}
-              disable={page - 1 <= 0 ? true : false}
-              onClick={() => setCurrent({ index: page - 1 })}
-            >
-              <S.Arrow color="#52575c" size="12px" direction="left" />
-            </S.IndexaoCard>
+                              style={{
+                                    background: "transparent",
+                                    border: "none",
+                                    cursor: "pointer",
+                                    color: "#0088b2",
+                                    fontWeight: "bold",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "8px",
+                              }}
+                        >
+                              <S.Arrow
+                                    direction={
+                                          showAdvancedFilters ? "up" : "down"
+                                    }
+                                    size="10px"
+                              />
+                              Filtros Avançados
+                        </button>
 
-            {[...Array(limitPage).fill("").keys()].map((i) => {
-              return (
-                <S.IndexaoCard
-                  key={i}
-                  onClick={() => setCurrent({ index: i + 1 })}
-                  backgroundState={page === i + 1 ? "gradient" : "transparent"}
-                >
-                  {i + 1}
-                </S.IndexaoCard>
-              );
-            })}
+                        {showAdvancedFilters && (
+                              <div
+                                    style={{
+                                          marginTop: "16px",
+                                          padding: "16px",
+                                          background: "#f9f9f9",
+                                          borderRadius: "8px",
+                                          display: "flex",
+                                          gap: "16px",
+                                          flexWrap: "wrap",
+                                    }}
+                              >
+                                    {/* Nome do paciente */}
+                                    <div
+                                          style={{
+                                                flex: "1",
+                                                minWidth: "200px",
+                                          }}
+                                    >
+                                          <label
+                                                style={{
+                                                      fontSize: "12px",
+                                                      color: "#666",
+                                                }}
+                                          >
+                                                Nome do Paciente
+                                          </label>
+                                          <input
+                                                type="text"
+                                                placeholder="Buscar por nome..."
+                                                value={filters.name || ""}
+                                                onChange={(e) =>
+                                                      setFilter(
+                                                            "name",
+                                                            e.target.value,
+                                                      )
+                                                }
+                                                style={{
+                                                      width: "100%",
+                                                      padding: "10px",
+                                                      border: "1px solid #ddd",
+                                                      borderRadius: "8px",
+                                                      marginTop: "4px",
+                                                }}
+                                          />
+                                    </div>
 
-            <S.IndexaoCard
-              backgroundState={"transparent"}
-              onClick={() => setCurrent({ index: page + 1 })}
-              disable={page + 1 > limitPage ? true : false}
-            >
-              <S.Arrow color="#52575c" size="12px" direction="right" />
-            </S.IndexaoCard>
-          </S.Indexao>
-        )}
-      </div>
-    </S.ReportStyles>
-  );
+                                    {/* Nome do responsável */}
+                                    <div
+                                          style={{
+                                                flex: "1",
+                                                minWidth: "200px",
+                                          }}
+                                    >
+                                          <label
+                                                style={{
+                                                      fontSize: "12px",
+                                                      color: "#666",
+                                                }}
+                                          >
+                                                Usuário Responsável
+                                          </label>
+                                          <input
+                                                type="text"
+                                                placeholder="Buscar por responsável..."
+                                                value={filters.manager || ""}
+                                                onChange={(e) =>
+                                                      setFilter(
+                                                            "manager",
+                                                            e.target.value,
+                                                      )
+                                                }
+                                                style={{
+                                                      width: "100%",
+                                                      padding: "10px",
+                                                      border: "1px solid #ddd",
+                                                      borderRadius: "8px",
+                                                      marginTop: "4px",
+                                                }}
+                                          />
+                                    </div>
+
+                                    {/* Data início */}
+                                    <div style={{ minWidth: "150px" }}>
+                                          <label
+                                                style={{
+                                                      fontSize: "12px",
+                                                      color: "#666",
+                                                }}
+                                          >
+                                                Data Início
+                                          </label>
+                                          <input
+                                                type="date"
+                                                value={filters.dateStart || ""}
+                                                onChange={(e) =>
+                                                      setFilter(
+                                                            "dateStart",
+                                                            e.target.value,
+                                                      )
+                                                }
+                                                style={{
+                                                      width: "100%",
+                                                      padding: "10px",
+                                                      border: "1px solid #ddd",
+                                                      borderRadius: "8px",
+                                                      marginTop: "4px",
+                                                }}
+                                          />
+                                    </div>
+
+                                    {/* Data fim */}
+                                    <div style={{ minWidth: "150px" }}>
+                                          <label
+                                                style={{
+                                                      fontSize: "12px",
+                                                      color: "#666",
+                                                }}
+                                          >
+                                                Data Fim
+                                          </label>
+                                          <input
+                                                type="date"
+                                                value={filters.dateEnd || ""}
+                                                onChange={(e) =>
+                                                      setFilter(
+                                                            "dateEnd",
+                                                            e.target.value,
+                                                      )
+                                                }
+                                                style={{
+                                                      width: "100%",
+                                                      padding: "10px",
+                                                      border: "1px solid #ddd",
+                                                      borderRadius: "8px",
+                                                      marginTop: "4px",
+                                                }}
+                                          />
+                                    </div>
+                              </div>
+                        )}
+                  </div>
+
+                  {/* Tabela */}
+                  <div className="ContainerTable">
+                        {isLoading ? (
+                              <h1
+                                    style={{
+                                          padding: "40px",
+                                          textAlign: "center",
+                                    }}
+                              >
+                                    Carregando...
+                              </h1>
+                        ) : currentItems.length >= 1 ? (
+                              <S.Table>
+                                    <thead>
+                                          <tr>
+                                                <th>Criado em</th>
+                                                <th>Internado à</th>
+                                                <th>Nome do Interno</th>
+                                                <th>Usuário Responsável</th>
+                                                <th>Status</th>
+                                                <th className="IconTable">
+                                                      Ações
+                                                </th>
+                                          </tr>
+                                    </thead>
+                                    <tbody>
+                                          {currentItems.map((item, index) => (
+                                                <tr key={item.id || index}>
+                                                      <td>
+                                                            {formatDate(
+                                                                  item.created_at,
+                                                            )}
+                                                      </td>
+                                                      <td>
+                                                            {showHowManyDays(
+                                                                  item.joined_at,
+                                                            )}
+                                                      </td>
+                                                      <td>{item.name}</td>
+                                                      <td>
+                                                            {item.managers_name}
+                                                      </td>
+                                                      <td
+                                                            style={{
+                                                                  textTransform:
+                                                                        "capitalize",
+                                                            }}
+                                                      >
+                                                            {item.status}
+                                                      </td>
+                                                      <td className="IconTable">
+                                                            <S.EyeIcon
+                                                                  onClick={() =>
+                                                                        goToRelatory(
+                                                                              item.id!,
+                                                                              item.name!,
+                                                                        )
+                                                                  }
+                                                            />
+                                                            <S.EditIcon
+                                                                  onClick={() =>
+                                                                        goToEditPatient(
+                                                                              item.id!,
+                                                                        )
+                                                                  }
+                                                            />
+                                                            <S.LixoIcon
+                                                                  onClick={() =>
+                                                                        handleRemovePatient(
+                                                                              item.id!,
+                                                                        )
+                                                                  }
+                                                            />
+                                                      </td>
+                                                </tr>
+                                          ))}
+                                    </tbody>
+                              </S.Table>
+                        ) : (
+                              <div
+                                    style={{
+                                          padding: "60px 40px",
+                                          textAlign: "center",
+                                          background: "#fff",
+                                          borderRadius: "8px",
+                                          marginTop: "20px",
+                                    }}
+                              >
+                                    <h2
+                                          style={{
+                                                color: "#666",
+                                                marginBottom: "20px",
+                                          }}
+                                    >
+                                          {patients.length === 0
+                                                ? "Não foram localizados registros"
+                                                : "Nenhum paciente encontrado com os filtros aplicados"}
+                                    </h2>
+                                    <div
+                                          style={{
+                                                display: "flex",
+                                                gap: "16px",
+                                                justifyContent: "center",
+                                          }}
+                                    >
+                                          <button
+                                                onClick={() =>
+                                                      history.push("/")
+                                                }
+                                                style={{
+                                                      padding: "12px 24px",
+                                                      background:
+                                                            "linear-gradient(135deg, #00568c 0%, #0088b2 50%, #3dbb95 100%)",
+                                                      color: "white",
+                                                      border: "none",
+                                                      borderRadius: "8px",
+                                                      cursor: "pointer",
+                                                      fontSize: "14px",
+                                                      fontWeight: "500",
+                                                }}
+                                          >
+                                                Voltar ao Dashboard
+                                          </button>
+                                          {hasActiveFilters && (
+                                                <button
+                                                      onClick={clearFilters}
+                                                      style={{
+                                                            padding: "12px 24px",
+                                                            background:
+                                                                  "transparent",
+                                                            border: "1px solid #0088b2",
+                                                            color: "#0088b2",
+                                                            borderRadius: "8px",
+                                                            cursor: "pointer",
+                                                            fontSize: "14px",
+                                                            fontWeight: "500",
+                                                      }}
+                                                >
+                                                      Limpar Filtros
+                                                </button>
+                                          )}
+                                          <button
+                                                onClick={() => fetchPatients()}
+                                                style={{
+                                                      padding: "12px 24px",
+                                                      background: "transparent",
+                                                      border: "1px solid #ccc",
+                                                      color: "#666",
+                                                      borderRadius: "8px",
+                                                      cursor: "pointer",
+                                                      fontSize: "14px",
+                                                }}
+                                          >
+                                                Tentar Novamente
+                                          </button>
+                                    </div>
+                              </div>
+                        )}
+
+                        {/* Paginação */}
+                        {pagination.totalPages > 1 && (
+                              <S.Indexao>
+                                    {/* Botão Anterior */}
+                                    <S.IndexaoCard
+                                          backgroundState="transparent"
+                                          disable={pagination.currentPage <= 1}
+                                          onClick={() =>
+                                                setPage(
+                                                      pagination.currentPage -
+                                                            1,
+                                                )
+                                          }
+                                    >
+                                          <S.Arrow
+                                                color="#52575c"
+                                                size="12px"
+                                                direction="left"
+                                          />
+                                    </S.IndexaoCard>
+
+                                    {/* Páginas */}
+                                    {visiblePages.map((pageNum, index) =>
+                                          pageNum === "..." ? (
+                                                <span
+                                                      key={`ellipsis-${index}`}
+                                                      style={{
+                                                            padding: "0 8px",
+                                                            color: "#666",
+                                                            userSelect: "none",
+                                                      }}
+                                                >
+                                                      ...
+                                                </span>
+                                          ) : (
+                                                <S.IndexaoCard
+                                                      key={pageNum}
+                                                      onClick={() =>
+                                                            setPage(
+                                                                  pageNum as number,
+                                                            )
+                                                      }
+                                                      backgroundState={
+                                                            pagination.currentPage ===
+                                                            pageNum
+                                                                  ? "gradient"
+                                                                  : "transparent"
+                                                      }
+                                                >
+                                                      {pageNum}
+                                                </S.IndexaoCard>
+                                          ),
+                                    )}
+
+                                    {/* Botão Próximo */}
+                                    <S.IndexaoCard
+                                          backgroundState="transparent"
+                                          onClick={() =>
+                                                setPage(
+                                                      pagination.currentPage +
+                                                            1,
+                                                )
+                                          }
+                                          disable={
+                                                pagination.currentPage >=
+                                                pagination.totalPages
+                                          }
+                                    >
+                                          <S.Arrow
+                                                color="#52575c"
+                                                size="12px"
+                                                direction="right"
+                                          />
+                                    </S.IndexaoCard>
+
+                                    {/* Info de paginação */}
+                                    <span
+                                          style={{
+                                                marginLeft: "16px",
+                                                fontSize: "14px",
+                                                color: "#666",
+                                          }}
+                                    >
+                                          Página {pagination.currentPage} de{" "}
+                                          {pagination.totalPages} (
+                                          {pagination.totalItems} registros)
+                                    </span>
+                              </S.Indexao>
+                        )}
+                  </div>
+            </S.ReportStyles>
+      );
 };
 
 export default PatientRelatory;

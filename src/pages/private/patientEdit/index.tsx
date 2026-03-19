@@ -1,22 +1,13 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState, useRef } from "react";
-import {
-      PatientEvolu,
-      Patient,
-      ProfileText,
-      ProfilePhoto,
-      Image,
-      Box,
-} from "./styles";
-import { Button } from "../../../styles/utils/button";
 import API from "../../../services/api";
 import { useHistory, useParams } from "react-router-dom";
 import useAuth from "../../../hooks/auth";
-import PDFIcon from "../../../assets/pdf.svg";
-
+import NavigationHeader from "../../../components/navigationHeader";
 import IPatient from "../../../interfaces/IPatient";
 import IAttachments from "../../../interfaces/IAttachments";
 import { sucess, error, warning, info } from "../../../components/alert";
+import * as S from "../../../styles/formStyles";
 
 interface IUpload {
       target: HTMLInputElement;
@@ -30,43 +21,37 @@ const PatientEdit: React.FC = () => {
       const [patient, setPatient] = useState<IPatient | null>(null);
       const [attachments, setAttachments] = useState<IAttachments[]>([]);
       const [image, setImage] = useState<File | undefined>(undefined);
+      const [isSubmitting, setIsSubmitting] = useState(false);
 
       const imageProfilePreviewRef = useRef<HTMLImageElement>(null);
-      const birthdayRef = useRef<HTMLInputElement>(null);
-      const joinedAtRef = useRef<HTMLInputElement>(null);
 
-      // Função para atualizar a visualização da imagem
       const updateImageProfilePreview = (
             e: React.ChangeEvent<HTMLInputElement>,
       ) => {
-            const file = e.target.files ? e.target.files[0] : null;
-
+            const file = e.target.files?.[0];
             if (!file) return;
 
             if (!file.name.match(/\.(jpg|jpeg|png|jfif)$/)) {
                   return warning(
-                        "Tipo de imagem não suportado, envie arquivos em: .png ou .jpg.",
+                        "Tipo de imagem não suportado. Use: .png ou .jpg",
                   );
             }
 
             if (file.size > 2e6) {
-                  return warning(
-                        "Limite de upload atingido. Selecione uma foto abaixo de 2 MB.",
-                  );
+                  return warning("Limite de 2MB excedido.");
             }
 
             if (imageProfilePreviewRef.current) {
                   imageProfilePreviewRef.current.src =
                         URL.createObjectURL(file);
             }
-
             setImage(file);
       };
 
-      // Função para atualizar os dados do paciente
-      const updatePatient = () => {
+      const updatePatient = async () => {
             if (!patient) return;
 
+            setIsSubmitting(true);
             const form = new FormData();
             const invalidValues = [
                   "managers_id",
@@ -77,22 +62,16 @@ const PatientEdit: React.FC = () => {
             ];
 
             Object.keys(patient).forEach((key) => {
-                  if (
-                        key === "" ||
-                        key === null ||
-                        !key ||
-                        invalidValues.includes(key)
-                  )
-                        return;
+                  if (!key || invalidValues.includes(key)) return;
 
                   const formattedKey = key
                         .split("_")
-                        .map((word, index) => {
-                              if (index === 0) return word.toLowerCase();
-                              return (
-                                    word.charAt(0).toUpperCase() + word.slice(1)
-                              );
-                        })
+                        .map((word, index) =>
+                              index === 0
+                                    ? word.toLowerCase()
+                                    : word.charAt(0).toUpperCase() +
+                                      word.slice(1),
+                        )
                         .join("");
 
                   if (patient[key]) {
@@ -104,35 +83,30 @@ const PatientEdit: React.FC = () => {
                   form.append("profilePhoto", image);
             }
 
-            info("Editando... Aguarde um momento");
+            info("Salvando alterações...");
 
-            API.post("patient/edit", form, {
-                  headers: {
-                        Authorization: userData!.token,
-                        "Content-Type": "multipart/form-data",
-                  },
-                  params: {
-                        id: params.id,
-                  },
-            })
-                  .then(() => sucess("Editado com sucesso!"))
-                  .catch((e) => {
-                        console.error(e);
-                        error(
-                              "Erro ao editar. Revise as informações e tente novamente.",
-                        );
+            try {
+                  await API.post("patient/edit", form, {
+                        headers: {
+                              Authorization: userData!.token,
+                              "Content-Type": "multipart/form-data",
+                        },
+                        params: { id: params.id },
                   });
+                  sucess("Paciente atualizado com sucesso!");
+            } catch {
+                  error(
+                        "Erro ao editar. Revise as informações e tente novamente.",
+                  );
+            } finally {
+                  setIsSubmitting(false);
+            }
       };
 
-      // Função para buscar os dados do paciente
       const findUserByID = () => {
             API.get("patient/get/id", {
-                  headers: {
-                        Authorization: userData!.token,
-                  },
-                  params: {
-                        id: params.id,
-                  },
+                  headers: { Authorization: userData!.token },
+                  params: { id: params.id },
             })
                   .then(({ data }: { data: { patient: IPatient } }) => {
                         setPatient(data.patient);
@@ -140,16 +114,12 @@ const PatientEdit: React.FC = () => {
                               getAttachments(data.patient.id);
                         }
                   })
-                  .catch((e) => {
-                        error(
-                              "Erro ao buscar dados do paciente. Tente novamente.",
-                        );
-                        console.log(e);
-                        history.push("/");
+                  .catch(() => {
+                        error("Erro ao buscar dados do paciente.");
+                        history.push("/patient/relatory");
                   });
       };
 
-      // Função para fazer o upload de arquivos PDF
       const uploadFile = ({ target }: IUpload) => {
             if (!patient || !target.files) return;
 
@@ -158,408 +128,671 @@ const PatientEdit: React.FC = () => {
                   formData.append("patientPDF", file),
             );
 
+            info("Enviando documento...");
+
             API.post("patient/upload/pdf", formData, {
                   headers: {
                         Authorization: userData!.token,
                         "Content-Type": "multipart/form-data",
                   },
-                  params: {
-                        id: patient.id,
-                        name: patient.name,
-                  },
+                  params: { id: patient.id, name: patient.name },
             })
                   .then((e) => {
                         setAttachments((prev) => [
                               ...prev,
                               ...e.data.attachments,
                         ]);
-                        sucess("Arquivo enviado com sucesso.");
+                        sucess("Documento enviado com sucesso!");
                   })
                   .catch(() => {
                         warning(
-                              "Erro ao enviar o arquivo. Verifique se o arquivo está em .pdf.",
+                              "Erro ao enviar. Verifique se o arquivo está em .pdf",
                         );
                   });
       };
 
-      // Função para obter os anexos do paciente
       const getAttachments = async (id: string) => {
             try {
                   const {
                         data: { attachments },
                   } = await API.get("patient/get/attachments", {
-                        headers: {
-                              Authorization: userData!.token,
-                        },
-                        params: {
-                              id: id,
-                        },
+                        headers: { Authorization: userData!.token },
+                        params: { id },
                   });
                   setAttachments(attachments);
-            } catch (err) {
-                  // S3 not configured in development - fallback to empty attachments
-                  console.warn(
-                        "Attachments service unavailable, continuing without attachments",
-                  );
+            } catch {
+                  console.warn("Attachments service unavailable");
                   setAttachments([]);
             }
       };
 
-      // Função para baixar arquivos PDF
       const downloadPDF = async (index: number) => {
             try {
                   const {
                         data: { url },
                   } = await API.get("patient/get/attachment", {
-                        headers: {
-                              Authorization: userData!.token,
-                        },
-                        params: {
-                              id: attachments[index].id,
-                        },
+                        headers: { Authorization: userData!.token },
+                        params: { id: attachments[index].id },
                   });
-
-                  window.open(url, "_blank")!.focus();
-            } catch (err) {
-                  console.warn(
-                        "Failed to download attachment - S3 service unavailable",
-                  );
-                  error(
-                        "Não foi possível baixar o arquivo. Serviço de armazenamento indisponível.",
-                  );
+                  window.open(url, "_blank")?.focus();
+            } catch {
+                  error("Não foi possível baixar o arquivo.");
             }
       };
 
       useEffect(() => {
-            if (!params.id) return history.push("/");
+            if (!params.id) return history.push("/patient/relatory");
             findUserByID();
       }, [params.id]);
 
       if (!patient) {
-            return <h1>Loading...</h1>;
+            return (
+                  <S.Container>
+                        <S.LoadingState>
+                              <S.LoadingSpinner />
+                              <span>Carregando dados do paciente...</span>
+                        </S.LoadingState>
+                  </S.Container>
+            );
       }
 
       return (
-            <Patient>
-                  <h2>Edição de Pacientes</h2>
-                  <div className="grid">
-                        <PatientEvolu>
-                              {/* Inputs */}
-                              <select
-                                    id="select"
-                                    className="inputName"
-                                    value={patient.patient_place}
-                                    onChange={(e) =>
-                                          setPatient({
-                                                ...patient,
-                                                patient_place: e.target.value,
-                                          })
-                                    }
-                              >
-                                    <option value="*" disabled>
-                                          Local do Paciente
-                                    </option>
-                                    <option value="Casa de Apoio">
-                                          Casa de Apoio
-                                    </option>
-                                    <option value="Comunidade Terapêutica">
-                                          Comunidade Terapêutica
-                                    </option>
-                              </select>
+            <S.Container>
+                  <NavigationHeader
+                        title={`Editar: ${patient.name}`}
+                        backPath="/patient/relatory"
+                        breadcrumbs={[
+                              { label: "Pacientes", path: "/patient/relatory" },
+                              { label: patient.name || "Edição" },
+                        ]}
+                  />
 
-                              <input
-                                    id="input"
-                                    className="inputName"
-                                    placeholder="Nome Completo"
-                                    value={patient.name}
-                                    onChange={(e) =>
-                                          setPatient({
-                                                ...patient,
-                                                name: e.target.value,
-                                          })
-                                    }
-                              />
-
-                              {/* RG/CPF */}
-                              <div className="row-column">
-                                    <input
-                                          id="input"
-                                          className="half-input"
-                                          placeholder="RG"
-                                          maxLength={10}
-                                          value={patient.rg}
-                                          onChange={(e) =>
-                                                setPatient({
-                                                      ...patient,
-                                                      rg: e.target.value,
-                                                })
-                                          }
-                                    />
-                                    <input
-                                          id="input"
-                                          className="half-input"
-                                          placeholder="CPF"
-                                          maxLength={11}
-                                          value={patient.cpf}
-                                          onChange={(e) =>
-                                                setPatient({
-                                                      ...patient,
-                                                      cpf: e.target.value,
-                                                })
-                                          }
-                                    />
-                              </div>
-
-                              {/* Gender/CEP */}
-                              <div className="row-column">
-                                    <select
-                                          id="select"
-                                          className="half-input"
-                                          value={patient.gender}
-                                          onChange={(e) =>
-                                                setPatient({
-                                                      ...patient,
-                                                      gender: e.target.value,
-                                                })
-                                          }
-                                    >
-                                          <option value="" disabled>
-                                                Gênero
-                                          </option>
-                                          <option value="female">
-                                                Feminino
-                                          </option>
-                                          <option value="male">
-                                                Masculino
-                                          </option>
-                                    </select>
-                                    <input
-                                          type="date"
-                                          id="input"
-                                          className="half-input"
-                                          placeholder="Data de Nascimento"
-                                          ref={birthdayRef}
-                                          value={
-                                                patient.birthday
-                                                      ? patient.birthday.split(
-                                                              "T",
-                                                        )[0]
-                                                      : ""
-                                          }
-                                          onChange={(e) =>
-                                                setPatient({
-                                                      ...patient,
-                                                      birthday: e.target.value,
-                                                })
-                                          }
-                                          max={new Date()
-                                                .toISOString()
-                                                .slice(0, 10)}
-                                    />
-                              </div>
-
-                              <div className="row-column">
-                                    <input
-                                          id="input"
-                                          className="half-input"
-                                          placeholder="CEP"
-                                          maxLength={8}
-                                          value={patient.cep}
-                                          onChange={(e) =>
-                                                setPatient({
-                                                      ...patient,
-                                                      cep: e.target.value,
-                                                })
-                                          }
-                                    />
-                                    <input
-                                          id="input"
-                                          className="half-input"
-                                          placeholder="UF"
-                                          maxLength={2}
-                                          disabled
-                                          value={patient.cep ? patient.uf : ""}
-                                    />
-                              </div>
-
-                              <div className="row-column">
-                                    <input
-                                          id="input"
-                                          className="half-input"
-                                          placeholder="Cidade"
-                                          disabled
-                                          value={
-                                                patient.cep ? patient.city : ""
-                                          }
-                                    />
-                                    <input
-                                          id="input"
-                                          className="half-input"
-                                          placeholder="Nº"
-                                          maxLength={5}
-                                          value={
-                                                patient.cep
-                                                      ? patient.number_house
-                                                      : ""
-                                          }
-                                          onChange={(e) =>
-                                                setPatient({
-                                                      ...patient,
-                                                      number_house:
-                                                            e.target.value,
-                                                })
-                                          }
-                                    />
-                              </div>
-
-                              <input
-                                    style={{ color: "#000000" }}
-                                    id="input"
-                                    className="inputName"
-                                    placeholder="Logradouro"
-                                    disabled
-                                    value={patient.cep ? patient.street : ""}
-                              />
-
-                              <input
-                                    type="date"
-                                    id="input"
-                                    className="inputName"
-                                    placeholder="Data de Entrada"
-                                    ref={joinedAtRef}
-                                    value={
-                                          patient.joined_at
-                                                ? patient.joined_at.split(
-                                                        "T",
-                                                  )[0]
-                                                : ""
-                                    }
-                                    onChange={(e) =>
-                                          setPatient({
-                                                ...patient,
-                                                joined_at: e.target.value,
-                                          })
-                                    }
-                                    max={new Date().toISOString().slice(0, 10)}
-                              />
-
-                              <input
-                                    id="input"
-                                    className="inputName"
-                                    placeholder="Nome da Mãe"
-                                    value={patient.mother_name}
-                                    onChange={(e) =>
-                                          setPatient({
-                                                ...patient,
-                                                mother_name: e.target.value,
-                                          })
-                                    }
-                              />
-                              <input
-                                    id="input"
-                                    className="inputName"
-                                    placeholder="Antecedentes Policiais"
-                                    value={patient.criminal_record}
-                                    onChange={(e) =>
-                                          setPatient({
-                                                ...patient,
-                                                criminal_record: e.target.value,
-                                          })
-                                    }
-                              />
-                              <input
-                                    id="input"
-                                    className="inputName"
-                                    placeholder="Substâncias"
-                                    value={patient.substances}
-                                    onChange={(e) =>
-                                          setPatient({
-                                                ...patient,
-                                                substances: e.target.value,
-                                          })
-                                    }
-                              />
-
-                              {/* Botão */}
-                              <div className="check-button">
-                                    <Button
-                                          style={{ width: 300 }}
-                                          onClick={updatePatient}
-                                    >
-                                          Atualizar
-                                    </Button>
-                              </div>
-                        </PatientEvolu>
-
-                        {/* Inserir Imagem */}
-                        <ProfilePhoto>
-                              <Image
-                                    src={patient.profile_photo}
-                                    alt=""
-                                    ref={imageProfilePreviewRef}
-                              />
-                              <input
-                                    id="imageFile"
-                                    type="file"
-                                    onChange={updateImageProfilePreview}
-                                    style={{ display: "none" }}
-                              />
-                              <ProfileText htmlFor="imageFile">
-                                    Inserir Imagem
-                              </ProfileText>
-
-                              <div className="docBox">
-                                    <div className="subBox">
-                                          <span className="docText">
-                                                {" "}
-                                                Documentos{" "}
-                                          </span>
-                                          <div className="line" />
-                                    </div>
-                                    <div className="FragmentsPDF">
-                                          {attachments.map(
-                                                (attachment, index) => (
-                                                      <div
-                                                            className="fragmentPDF"
-                                                            key={index}
-                                                            onClick={() =>
-                                                                  downloadPDF(
-                                                                        index,
-                                                                  )
-                                                            }
-                                                            style={{
-                                                                  cursor: "pointer",
-                                                            }}
+                  <S.ContentGrid>
+                        <S.MainColumn>
+                              {/* Informações Básicas */}
+                              <S.Card>
+                                    <S.CardHeader>
+                                          <S.CardTitle>
+                                                <S.CardIcon>
+                                                      <svg
+                                                            width="18"
+                                                            height="18"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            strokeWidth="2"
                                                       >
-                                                            <img
-                                                                  src={PDFIcon}
-                                                                  alt=""
+                                                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                                            <circle
+                                                                  cx="12"
+                                                                  cy="7"
+                                                                  r="4"
                                                             />
-                                                            <span>
-                                                                  {
-                                                                        attachment.name
-                                                                  }
-                                                            </span>
-                                                      </div>
-                                                ),
-                                          )}
-                                    </div>
-                              </div>
+                                                      </svg>
+                                                </S.CardIcon>
+                                                Informações Pessoais
+                                          </S.CardTitle>
+                                          <S.StatusBadge
+                                                status={
+                                                      patient.status || "ativo"
+                                                }
+                                          >
+                                                {patient.status === "ativo" &&
+                                                      "● Ativo"}
+                                                {patient.status ===
+                                                      "transferido" &&
+                                                      "↗ Transferido"}
+                                                {patient.status ===
+                                                      "finalizado" &&
+                                                      "✓ Finalizado"}
+                                          </S.StatusBadge>
+                                    </S.CardHeader>
 
-                              <input
-                                    type="file"
-                                    id="fileUpload"
-                                    accept=".pdf"
-                                    onChange={(e) =>
-                                          uploadFile({ target: e.target })
-                                    }
-                                    multiple
-                                    style={{ display: "none" }}
-                              />
-                              <Box htmlFor="fileUpload">Inserir Documento</Box>
-                        </ProfilePhoto>
-                  </div>
-            </Patient>
+                                    <S.FormGrid>
+                                          <S.FormGroup fullWidth>
+                                                <S.Label>
+                                                      Nome Completo{" "}
+                                                      <S.RequiredMark>
+                                                            *
+                                                      </S.RequiredMark>
+                                                </S.Label>
+                                                <S.Input
+                                                      placeholder="Digite o nome completo"
+                                                      value={patient.name || ""}
+                                                      onChange={(e) =>
+                                                            setPatient({
+                                                                  ...patient,
+                                                                  name: e.target
+                                                                        .value,
+                                                            })
+                                                      }
+                                                />
+                                          </S.FormGroup>
+
+                                          <S.FormGroup>
+                                                <S.Label>
+                                                      Local do Paciente
+                                                </S.Label>
+                                                <S.Select
+                                                      value={
+                                                            patient.patient_place ||
+                                                            ""
+                                                      }
+                                                      onChange={(e) =>
+                                                            setPatient({
+                                                                  ...patient,
+                                                                  patient_place:
+                                                                        e.target
+                                                                              .value,
+                                                            })
+                                                      }
+                                                >
+                                                      <option value="">
+                                                            Selecione...
+                                                      </option>
+                                                      <option value="Casa de Apoio">
+                                                            Casa de Apoio
+                                                      </option>
+                                                      <option value="Comunidade Terapêutica">
+                                                            Comunidade
+                                                            Terapêutica
+                                                      </option>
+                                                </S.Select>
+                                          </S.FormGroup>
+
+                                          <S.FormGroup>
+                                                <S.Label>Status</S.Label>
+                                                <S.Select
+                                                      value={
+                                                            patient.status ||
+                                                            "ativo"
+                                                      }
+                                                      onChange={(e) =>
+                                                            setPatient({
+                                                                  ...patient,
+                                                                  status: e
+                                                                        .target
+                                                                        .value,
+                                                            })
+                                                      }
+                                                >
+                                                      <option value="ativo">
+                                                            Ativo
+                                                      </option>
+                                                      <option value="transferido">
+                                                            Transferido
+                                                      </option>
+                                                      <option value="finalizado">
+                                                            Finalizado
+                                                      </option>
+                                                </S.Select>
+                                          </S.FormGroup>
+
+                                          <S.FormGroup>
+                                                <S.Label>CPF</S.Label>
+                                                <S.Input
+                                                      placeholder="00000000000"
+                                                      maxLength={11}
+                                                      value={patient.cpf || ""}
+                                                      onChange={(e) =>
+                                                            setPatient({
+                                                                  ...patient,
+                                                                  cpf: e.target
+                                                                        .value,
+                                                            })
+                                                      }
+                                                />
+                                          </S.FormGroup>
+
+                                          <S.FormGroup>
+                                                <S.Label>RG</S.Label>
+                                                <S.Input
+                                                      placeholder="000000000"
+                                                      maxLength={10}
+                                                      value={patient.rg || ""}
+                                                      onChange={(e) =>
+                                                            setPatient({
+                                                                  ...patient,
+                                                                  rg: e.target
+                                                                        .value,
+                                                            })
+                                                      }
+                                                />
+                                          </S.FormGroup>
+
+                                          <S.FormGroup>
+                                                <S.Label>Gênero</S.Label>
+                                                <S.Select
+                                                      value={
+                                                            patient.gender ||
+                                                            "male"
+                                                      }
+                                                      onChange={(e) =>
+                                                            setPatient({
+                                                                  ...patient,
+                                                                  gender: e
+                                                                        .target
+                                                                        .value,
+                                                            })
+                                                      }
+                                                >
+                                                      <option value="male">
+                                                            Masculino
+                                                      </option>
+                                                      <option value="female">
+                                                            Feminino
+                                                      </option>
+                                                </S.Select>
+                                          </S.FormGroup>
+
+                                          <S.FormGroup>
+                                                <S.Label>
+                                                      Data de Nascimento
+                                                </S.Label>
+                                                <S.Input
+                                                      type="date"
+                                                      value={
+                                                            patient.birthday
+                                                                  ? patient.birthday.split(
+                                                                          "T",
+                                                                    )[0]
+                                                                  : ""
+                                                      }
+                                                      onChange={(e) =>
+                                                            setPatient({
+                                                                  ...patient,
+                                                                  birthday: e
+                                                                        .target
+                                                                        .value,
+                                                            })
+                                                      }
+                                                      max={new Date()
+                                                            .toISOString()
+                                                            .slice(0, 10)}
+                                                />
+                                          </S.FormGroup>
+
+                                          <S.FormGroup>
+                                                <S.Label>Nome da Mãe</S.Label>
+                                                <S.Input
+                                                      placeholder="Nome completo da mãe"
+                                                      value={
+                                                            patient.mother_name ||
+                                                            ""
+                                                      }
+                                                      onChange={(e) =>
+                                                            setPatient({
+                                                                  ...patient,
+                                                                  mother_name:
+                                                                        e.target
+                                                                              .value,
+                                                            })
+                                                      }
+                                                />
+                                          </S.FormGroup>
+
+                                          <S.FormGroup>
+                                                <S.Label>
+                                                      Data de Entrada
+                                                </S.Label>
+                                                <S.Input
+                                                      type="date"
+                                                      value={
+                                                            patient.joined_at
+                                                                  ? patient.joined_at.split(
+                                                                          "T",
+                                                                    )[0]
+                                                                  : ""
+                                                      }
+                                                      onChange={(e) =>
+                                                            setPatient({
+                                                                  ...patient,
+                                                                  joined_at:
+                                                                        e.target
+                                                                              .value,
+                                                            })
+                                                      }
+                                                      max={new Date()
+                                                            .toISOString()
+                                                            .slice(0, 10)}
+                                                />
+                                          </S.FormGroup>
+                                    </S.FormGrid>
+                              </S.Card>
+
+                              {/* Endereço */}
+                              <S.Card>
+                                    <S.CardHeader>
+                                          <S.CardTitle>
+                                                <S.CardIcon>
+                                                      <svg
+                                                            width="18"
+                                                            height="18"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            strokeWidth="2"
+                                                      >
+                                                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                                                            <circle
+                                                                  cx="12"
+                                                                  cy="10"
+                                                                  r="3"
+                                                            />
+                                                      </svg>
+                                                </S.CardIcon>
+                                                Endereço
+                                          </S.CardTitle>
+                                    </S.CardHeader>
+
+                                    <S.FormGrid>
+                                          <S.FormGroup>
+                                                <S.Label>CEP</S.Label>
+                                                <S.Input
+                                                      placeholder="00000000"
+                                                      maxLength={8}
+                                                      value={patient.cep || ""}
+                                                      onChange={(e) =>
+                                                            setPatient({
+                                                                  ...patient,
+                                                                  cep: e.target
+                                                                        .value,
+                                                            })
+                                                      }
+                                                />
+                                          </S.FormGroup>
+
+                                          <S.FormGroup>
+                                                <S.Label>UF</S.Label>
+                                                <S.Input
+                                                      placeholder="UF"
+                                                      disabled
+                                                      value={patient.uf || ""}
+                                                />
+                                          </S.FormGroup>
+
+                                          <S.FormGroup>
+                                                <S.Label>Cidade</S.Label>
+                                                <S.Input
+                                                      placeholder="Cidade"
+                                                      disabled
+                                                      value={patient.city || ""}
+                                                />
+                                          </S.FormGroup>
+
+                                          <S.FormGroup>
+                                                <S.Label>Número</S.Label>
+                                                <S.Input
+                                                      placeholder="Nº"
+                                                      value={
+                                                            patient.number_house ||
+                                                            ""
+                                                      }
+                                                      onChange={(e) =>
+                                                            setPatient({
+                                                                  ...patient,
+                                                                  number_house:
+                                                                        e.target
+                                                                              .value,
+                                                            })
+                                                      }
+                                                />
+                                          </S.FormGroup>
+
+                                          <S.FormGroup fullWidth>
+                                                <S.Label>Logradouro</S.Label>
+                                                <S.Input
+                                                      placeholder="Rua, Avenida..."
+                                                      disabled
+                                                      value={
+                                                            patient.street || ""
+                                                      }
+                                                />
+                                          </S.FormGroup>
+                                    </S.FormGrid>
+                              </S.Card>
+
+                              {/* Informações Adicionais */}
+                              <S.Card>
+                                    <S.CardHeader>
+                                          <S.CardTitle>
+                                                <S.CardIcon>
+                                                      <svg
+                                                            width="18"
+                                                            height="18"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            strokeWidth="2"
+                                                      >
+                                                            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                                                            <rect
+                                                                  x="8"
+                                                                  y="2"
+                                                                  width="8"
+                                                                  height="4"
+                                                                  rx="1"
+                                                            />
+                                                      </svg>
+                                                </S.CardIcon>
+                                                Informações Adicionais
+                                          </S.CardTitle>
+                                    </S.CardHeader>
+
+                                    <S.FormGrid>
+                                          <S.FormGroup fullWidth>
+                                                <S.Label>
+                                                      Substâncias Utilizadas
+                                                </S.Label>
+                                                <S.Input
+                                                      placeholder="Descreva as substâncias..."
+                                                      value={
+                                                            patient.substances ||
+                                                            ""
+                                                      }
+                                                      onChange={(e) =>
+                                                            setPatient({
+                                                                  ...patient,
+                                                                  substances:
+                                                                        e.target
+                                                                              .value,
+                                                            })
+                                                      }
+                                                />
+                                          </S.FormGroup>
+
+                                          <S.FormGroup fullWidth>
+                                                <S.Label>
+                                                      Antecedentes Criminais
+                                                </S.Label>
+                                                <S.Input
+                                                      placeholder="Descreva se houver..."
+                                                      value={
+                                                            patient.criminal_record ||
+                                                            ""
+                                                      }
+                                                      onChange={(e) =>
+                                                            setPatient({
+                                                                  ...patient,
+                                                                  criminal_record:
+                                                                        e.target
+                                                                              .value,
+                                                            })
+                                                      }
+                                                />
+                                          </S.FormGroup>
+                                    </S.FormGrid>
+                              </S.Card>
+                        </S.MainColumn>
+
+                        <S.Sidebar>
+                              {/* Foto do Paciente */}
+                              <S.ProfileCard>
+                                    <S.ProfileImageWrapper>
+                                          <S.ProfileImage
+                                                ref={imageProfilePreviewRef}
+                                                src={
+                                                      patient.profile_photo ||
+                                                      ""
+                                                }
+                                                alt="Foto do paciente"
+                                          />
+                                    </S.ProfileImageWrapper>
+
+                                    <S.UploadButton>
+                                          Alterar Foto
+                                          <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={
+                                                      updateImageProfilePreview
+                                                }
+                                          />
+                                    </S.UploadButton>
+                              </S.ProfileCard>
+
+                              {/* Documentos */}
+                              <S.Card>
+                                    <S.CardHeader>
+                                          <S.CardTitle>
+                                                <S.CardIcon>
+                                                      <svg
+                                                            width="18"
+                                                            height="18"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            strokeWidth="2"
+                                                      >
+                                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                                            <polyline points="14 2 14 8 20 8" />
+                                                      </svg>
+                                                </S.CardIcon>
+                                                Documentos
+                                          </S.CardTitle>
+                                          <S.Badge>
+                                                {attachments.length}
+                                          </S.Badge>
+                                    </S.CardHeader>
+
+                                    <S.DocumentsList>
+                                          {attachments.length === 0 ? (
+                                                <S.EmptyDocuments>
+                                                      <span>
+                                                            <svg
+                                                                  width="32"
+                                                                  height="32"
+                                                                  viewBox="0 0 24 24"
+                                                                  fill="none"
+                                                                  stroke="currentColor"
+                                                                  strokeWidth="1.5"
+                                                            >
+                                                                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                                                  <polyline points="14 2 14 8 20 8" />
+                                                            </svg>
+                                                      </span>
+                                                      <p>
+                                                            Nenhum documento
+                                                            anexado
+                                                      </p>
+                                                </S.EmptyDocuments>
+                                          ) : (
+                                                attachments.map(
+                                                      (attachment, index) => (
+                                                            <S.DocumentItem
+                                                                  key={index}
+                                                                  onClick={() =>
+                                                                        downloadPDF(
+                                                                              index,
+                                                                        )
+                                                                  }
+                                                            >
+                                                                  <S.DocumentIcon>
+                                                                        <svg
+                                                                              width="20"
+                                                                              height="20"
+                                                                              viewBox="0 0 24 24"
+                                                                              fill="none"
+                                                                              stroke="currentColor"
+                                                                              strokeWidth="2"
+                                                                        >
+                                                                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                                                              <polyline points="14 2 14 8 20 8" />
+                                                                        </svg>
+                                                                  </S.DocumentIcon>
+                                                                  <S.DocumentInfo>
+                                                                        <S.DocumentName>
+                                                                              {
+                                                                                    attachment.name
+                                                                              }
+                                                                        </S.DocumentName>
+                                                                        <S.DocumentMeta>
+                                                                              Clique
+                                                                              para
+                                                                              baixar
+                                                                        </S.DocumentMeta>
+                                                                  </S.DocumentInfo>
+                                                                  <S.DocumentAction>
+                                                                        ↓
+                                                                  </S.DocumentAction>
+                                                            </S.DocumentItem>
+                                                      ),
+                                                )
+                                          )}
+                                    </S.DocumentsList>
+
+                                    <S.UploadDocButton>
+                                          <input
+                                                type="file"
+                                                accept=".pdf"
+                                                onChange={(e) =>
+                                                      uploadFile({
+                                                            target: e.target,
+                                                      })
+                                                }
+                                                multiple
+                                          />
+                                          + Adicionar PDF
+                                    </S.UploadDocButton>
+                              </S.Card>
+
+                              {/* Ações */}
+                              <S.Card>
+                                    <S.ActionButtons>
+                                          <S.SubmitButton
+                                                onClick={updatePatient}
+                                                disabled={isSubmitting}
+                                          >
+                                                {isSubmitting
+                                                      ? "Salvando..."
+                                                      : "✓ Salvar Alterações"}
+                                          </S.SubmitButton>
+
+                                          <S.SecondaryButton
+                                                onClick={() =>
+                                                      history.push(
+                                                            "/patient/relatory",
+                                                      )
+                                                }
+                                          >
+                                                Cancelar
+                                          </S.SecondaryButton>
+
+                                          <S.SecondaryButton
+                                                onClick={() =>
+                                                      history.push(
+                                                            `/patient/evolution/${patient.id}`,
+                                                      )
+                                                }
+                                                style={{ marginTop: 8 }}
+                                          >
+                                                Ver Evoluções →
+                                          </S.SecondaryButton>
+                                    </S.ActionButtons>
+                              </S.Card>
+                        </S.Sidebar>
+                  </S.ContentGrid>
+            </S.Container>
       );
 };
 
